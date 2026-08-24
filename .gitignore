@@ -1,6 +1,9 @@
 node_modules/
+coverage/
 *.log
 *.tmp
+*.tgz
+.eslintcache
 .DS_Store
 Thumbs.db
 .env

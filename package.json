@@ -29,5 +29,34 @@
     "README.md",
     "LICENSE"
   ],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "author": "sunzhentao <1040912265@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sunzhentao/dsh--prompt--enhance.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sunzhentao/dsh--prompt--enhance/issues"
+  },
+  "homepage": "https://github.com/sunzhentao/dsh--prompt--enhance",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "prompt-enhance",
+    "prompt",
+    "llm"
+  ],
+  "engines": {
+    "node": ">=18.13.0"
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/client.js",
+    "lint": "eslint lib/ --max-warnings 0",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.4",
+    "globals": "^17.11.0"
+  }
 }
