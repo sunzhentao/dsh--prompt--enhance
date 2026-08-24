@@ -6,10 +6,10 @@
     - 首次安装：创建源码联接、同步安装副本、注册依赖与 bundle
     - 日常开发：改完源码后直接执行，把最新代码同步到安装副本并做语法/一致性校验
 
-  用法：在仓库目录（如 本仓库目录）执行
+  用法：在仓库目录执行
     .\install.ps1
   或指定 DSH 主目录：
-    .\install.ps1 -DshHome C:\Users\xxx\.dsh
+    .\install.ps1 -DshHome C:\Users\<你的用户名>\.dsh
 
   执行完成后请重启 dsh web 并刷新页面。
 #>

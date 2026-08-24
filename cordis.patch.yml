@@ -3,6 +3,14 @@
 # /api/prompt-enhance/enhance, project-context collection + LLM rewrite) and
 # the browser side (lib/client.js via the dsh.client declaration in
 # package.json: the composer ✦ button and the overlay notice).
+#
+# 部署可按需覆盖配置：在 $DSH_HOME/cordis.patch.yml 或 --patch 覆盖层里以
+# 同一 row id 写 config（会整体替换本行 config，见 README「配置」），例如：
+#   - id: prompt-enhance
+#     config:
+#       modes:
+#         expert:
+#           effort: none
 - insert:
     - id: prompt-enhance
       name: prompt-enhance
