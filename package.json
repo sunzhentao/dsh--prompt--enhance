@@ -1,0 +1,33 @@
+{
+  "name": "prompt-enhance",
+  "version": "1.1.4",
+  "description": "提示词增强（静态 profile 插件）：三种模式（基础/标准/专家）读取会话工作区项目上下文并调用 LLM 增强输入框提示词，支持结果对比确认、采用后撤回、失败模型回退链、按模型能力自动发送 reasoningEffort、可取消。Host 半提供 /api/prompt-enhance/enhance；浏览器半在 composer 工具行注册模式选择与 ✦ 按钮、对比面板与忙碌状态卡。随 harness 启动自动加载，无需手动重新加载。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "Apache-2.0"
+}

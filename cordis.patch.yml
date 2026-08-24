@@ -1,0 +1,8 @@
+# prompt-enhance bundle patch: inserts the dual-face plugin row into the web
+# profile roster. The row mounts BOTH halves — the Host side (lib/index.js:
+# /api/prompt-enhance/enhance, project-context collection + LLM rewrite) and
+# the browser side (lib/client.js via the dsh.client declaration in
+# package.json: the composer ✦ button and the overlay notice).
+- insert:
+    - id: prompt-enhance
+      name: prompt-enhance
