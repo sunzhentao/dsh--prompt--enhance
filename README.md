@@ -2,6 +2,16 @@
 
 DSH Web profile 的静态插件：随 harness 启动自动加载，**无需每次手动重新加载**。任何机器、任何经 DSH 注册的模型/网关均可直接使用；模型能力差异由插件在运行时自动适配，无需修改代码。
 
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+![CI](https://github.com/sunzhentao/dsh--prompt--enhance/actions/workflows/ci.yml/badge.svg)
+
+## 文档
+
+- [贡献指南](CONTRIBUTING.md) — 报告问题 / 提交代码 / 开发与测试
+- [更新日志](CHANGELOG.md)
+- [安全说明](SECURITY.md)
+- [许可证](LICENSE) — Apache-2.0
+
 ## 结构
 
 | 文件 | 内容 |
@@ -85,6 +95,15 @@ DSH Web profile 的静态插件：随 harness 启动自动加载，**无需每�
 
 脚本会自动：创建源码联接 → 同步安装副本（含语法与一致性校验）→ 注册依赖与 bundle。之后**改完代码只需重新执行脚本 + 重启 dsh web**。卸载用 `.\uninstall.ps1`（安全：只删联接/副本/注册，保留本仓库源码）。
 
+**macOS / Linux** 使用 `install.sh`：
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+卸载用 `./uninstall.sh`（同样安全：只删联接/副本/注册，保留仓库源码）。
+
 **方式二：手动**
 
 ```powershell
@@ -105,10 +124,15 @@ Copy-Item -Recurse <repo> "$HOME\.dsh\plugins\prompt-enhance"
 
 ## 开发与调试
 
-- 改完源码需同步到安装副本并重启 harness 才生效：
+- 改完源码需同步到安装副本并重启 harness 才生效（也可直接重跑 `install.sh` / `install.ps1`）：
 
 ```powershell
 Copy-Item "$HOME\.dsh\plugins\prompt-enhance\lib\index.js", "$HOME\.dsh\plugins\prompt-enhance\lib\client.js" "$HOME\.dsh\profiles\web\node_modules\prompt-enhance\lib\" -Force
+```
+
+```bash
+# macOS / Linux
+cp lib/index.js lib/client.js "$HOME/.dsh/profiles/web/node_modules/prompt-enhance/lib/"
 ```
 
 - 诊断：`GET /api/prompt-enhance/log` 返回最近请求记录（状态 / 耗时 / 所用模型 / 浏览器错误上报）。
@@ -132,3 +156,7 @@ Copy-Item "$HOME\.dsh\plugins\prompt-enhance\lib\index.js", "$HOME\.dsh\plugins\
 - 上下文采集上限（标准模式默认）：目录 3 层、树 160 行 / 7000 字符、文件内容合计 11000 字符、单文件 6000 字符；专家模式预算更大（4 层 / 260 行 / 12000 字符树 / 18000 字符内容）。均可按模式配置覆盖。
 - 基础模式不依赖会话工作目录；标准/专家模式需要会话关联工作目录。
 - 增强期间用户修改输入框则不覆盖，提示重试。
+
+## 许可证
+
+本仓库采用 [Apache-2.0](LICENSE) 许可证，贡献即代表您同意该许可证。
