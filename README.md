@@ -36,6 +36,18 @@ DSH Web profile 的本地静态插件：随 harness 启动自动加载，**无�
 
 前提：已安装 DeepSeek Harness 并启用 web profile（`dsh web`）。
 
+**方式一（推荐）：一键脚本**
+
+仓库自带 `install.ps1`，clone 后在仓库目录直接执行：
+
+```powershell
+.\install.ps1
+```
+
+脚本会自动：创建源码联接 → 同步安装副本（含语法与一致性校验）→ 注册依赖与 bundle。之后**改完代码只需重新执行脚本 + 重启 dsh web**。卸载用 `.\uninstall.ps1`（安全：只删联接/副本/注册，保留本仓库源码）。
+
+**方式二：手动**
+
 ```powershell
 # 1) 把插件源码放到 DSH 插件目录（<repo> = 本仓库 clone 路径）
 Copy-Item -Recurse <repo> "$HOME\.dsh\plugins\prompt-enhance"
