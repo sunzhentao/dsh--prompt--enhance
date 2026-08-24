@@ -4,6 +4,10 @@ import {
   resolveConfig,
   collectContext,
   buildSystem,
+  normalizeAnswers,
+  buildReviseSystem,
+  buildReviseUser,
+  buildUserMessage,
   collectCandidates,
   reasonKind,
   reasonCode,
@@ -93,7 +97,75 @@ test('buildSystem 组装默认提示词并支持整体替换', () => {
   const sys = buildSystem({ extra: '模式：专家。' }, { system: '' })
   assert.ok(sys.includes('资深提示词工程师'))
   assert.ok(sys.includes('模式：专家。'))
+  // 规则 4：能自答的别问，只问必须用户决定的
+  assert.ok(sys.includes('能从项目上下文'))
+  assert.ok(sys.includes('── 待确认 ──'))
   assert.equal(buildSystem({ extra: '' }, { system: '完全自定义' }), '完全自定义')
+})
+
+// ---------- 待确认问答闭环 ----------
+
+test('normalizeAnswers 过滤空项并兼容多种键名', () => {
+  assert.deepEqual(normalizeAnswers(undefined), [])
+  assert.deepEqual(normalizeAnswers('x'), [])
+  assert.deepEqual(
+    normalizeAnswers([
+      { question: '目标读者？', answer: '开发者' },
+      { q: '平台？', a: 'Windows' },
+      { text: '  空格问题  ', value: '  答案  ' },
+      { question: '空回答', answer: '   ' },
+      { question: '   ', answer: 'x' },
+      null,
+    ]),
+    [
+      { question: '目标读者？', answer: '开发者' },
+      { question: '平台？', answer: 'Windows' },
+      { question: '空格问题', answer: '答案' },
+    ],
+  )
+})
+
+test('normalizeAnswers 限制条数与长度', () => {
+  const raw = Array.from({ length: 30 }, (_, i) => ({ question: 'q'.repeat(600) + i, answer: 'a'.repeat(2500) + i }))
+  const out = normalizeAnswers(raw)
+  assert.equal(out.length, 20)
+  assert.ok(out[0].question.length <= 500)
+  assert.ok(out[0].answer.length <= 2000)
+})
+
+test('buildReviseSystem 输出修订规则并尊重 system 覆盖', () => {
+  const sys = buildReviseSystem({ extra: '模式：标准。' }, { system: '' })
+  assert.ok(sys.includes('修订一份已有的增强提示词'))
+  assert.ok(sys.includes('模式：标准。'))
+  const over = buildReviseSystem({ extra: '' }, { system: '自定义系统' })
+  assert.ok(over.startsWith('自定义系统'))
+  assert.ok(over.includes('修订一份已有的增强提示词'))
+})
+
+test('buildReviseUser 携带原始提示词、回答与上一版正文', () => {
+  const user = buildReviseUser('写一个登录接口', '增强正文v1', [
+    { question: '用什么框架？', answer: 'FastAPI' },
+    { question: '部署到哪？', answer: 'Docker' },
+  ])
+  assert.ok(user.includes('原始提示词：\n写一个登录接口'))
+  assert.ok(user.includes('1. 问题：用什么框架？\n   确认：FastAPI'))
+  assert.ok(user.includes('2. 问题：部署到哪？\n   确认：Docker'))
+  assert.ok(user.includes('上一版增强正文（待修订）：\n增强正文v1'))
+  assert.ok(user.includes('直接输出修订后的完整增强正文'))
+})
+
+test('buildUserMessage：无回答保持原格式，有回答走修订或补充信息', () => {
+  const mode = { needsContext: true }
+  assert.equal(
+    buildUserMessage(mode, 'CTX', '草稿', [], ''),
+    '项目上下文：\nCTX\n\n原始提示词：\n草稿\n\n请基于项目上下文重写并增强上面的原始提示词，直接输出增强结果。',
+  )
+  const revise = buildUserMessage(mode, 'CTX', '草稿', [{ question: 'Q', answer: 'A' }], 'v1正文')
+  assert.ok(revise.includes('上一版增强正文（待修订）：\nv1正文'))
+  const fresh = buildUserMessage(mode, 'CTX', '草稿', [{ question: 'Q', answer: 'A' }], '')
+  assert.ok(fresh.includes('用户确认的信息：'))
+  assert.ok(fresh.includes('1. Q → A'))
+  assert.ok(fresh.includes('请基于以上项目上下文与用户确认的信息重写并增强'))
 })
 
 // ---------- collectCandidates ----------
@@ -216,14 +288,21 @@ test('attemptCandidate：全部失败返回失败原因', async () => {
 
 // ---------- collectContext ----------
 
+// 与真实 DSH fs 服务（dsh-fs-local）保持一致：resolve() 返回 { targetKey, displayPath }
+// 目标对象，listDir/stat 接收目标对象。早期桩返回纯字符串，掩盖了“把对象当字符串用”
+// 的回归（workspaceRoot.replace 抛 TypeError → 标准/专家模式拿不到项目上下文）。
 const fakeFs = {
-  async resolve(p) { return p === '.' ? '/workspace' : p },
+  async resolve(p) {
+    const key = p === '.' ? '/workspace' : p
+    return { targetKey: key, displayPath: key }
+  },
   async stat() { return { type: 'directory' } },
-  async listDir(p) {
+  async listDir(t) {
+    const p = typeof t === 'string' ? t : t.targetKey
     if (p === '/workspace/proj') {
       return [
-        { name: 'package.json', type: 'file', size: 50 },
-        { name: 'src', type: 'directory' },
+        { name: 'package.json', type: 'file', size: 50, target: { targetKey: '/workspace/proj/package.json', displayPath: '/workspace/proj/package.json' } },
+        { name: 'src', type: 'directory', target: { targetKey: '/workspace/proj/src', displayPath: '/workspace/proj/src' } },
       ]
     }
     return []
