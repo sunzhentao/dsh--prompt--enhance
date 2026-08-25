@@ -3,11 +3,11 @@ name: publish
 on:
   push:
     tags: [ 'v*' ]
-  workflow_dispatch: # 手动触发：请先确认 package.json 版本已 bump
+  workflow_dispatch:  # 手动触发
 
 permissions:
   contents: read
-  id-token: write # npm provenance 需要
+  id-token: write   # OIDC 认证必需
 
 jobs:
   publish:
@@ -18,15 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: Check NPM_TOKEN is configured
-        if: env.NPM_TOKEN == ''
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "::error::NPM_TOKEN secret 未配置：请在 GitHub 仓库 Settings > Secrets and variables > Actions 添加名为 NPM_TOKEN 的 npm automation token（npmjs.com → Access Tokens → Generate New Token → Automation）"
-          exit 1
+          registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies
         run: npm ci
@@ -35,7 +27,4 @@ jobs:
         run: npm run check && npm run lint && npm test
 
       - name: Publish to npm
-        if: env.NPM_TOKEN != ''
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
