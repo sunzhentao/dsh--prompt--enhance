@@ -51,7 +51,7 @@
     "llm"
   ],
   "engines": {
-    "node": ">=18.13.0"
+    "node": ">=22"
   },
   "scripts": {
     "check": "node --check lib/index.js && node --check lib/client.js",

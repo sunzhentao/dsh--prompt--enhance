@@ -141,12 +141,12 @@ Copy-Item -Recurse <repo> "$HOME\.dsh\plugins\prompt-enhance"
 - 本地源码开发：改完源码后重跑 `install.sh` / `install.ps1` 同步到安装副本，再重启 harness 生效：
 
 ```powershell
-Copy-Item "$HOME\.dsh\plugins\prompt-enhance\lib\index.js", "$HOME\.dsh\plugins\prompt-enhance\lib\client.js" "$HOME\.dsh\profiles\web\node_modules\prompt-enhance\lib\" -Force
+Copy-Item "$HOME\.dsh\plugins\prompt-enhance\lib\index.js", "$HOME\.dsh\plugins\prompt-enhance\lib\client.js" "$HOME\.dsh\profiles\web\node_modules\@lidaxi\prompt-enhance\lib\" -Force
 ```
 
 ```bash
 # macOS / Linux
-cp lib/index.js lib/client.js "$HOME/.dsh/profiles/web/node_modules/prompt-enhance/lib/"
+cp lib/index.js lib/client.js "$HOME/.dsh/profiles/web/node_modules/@lidaxi/prompt-enhance/lib/"
 ```
 
 - 诊断：`GET /api/prompt-enhance/log` 返回最近请求记录（状态 / 耗时 / 所用模型 / 浏览器错误上报）。
