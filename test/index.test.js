@@ -293,6 +293,7 @@ test('attemptCandidate：全部失败返回失败原因', async () => {
 // 的回归（workspaceRoot.replace 抛 TypeError → 标准/专家模式拿不到项目上下文）。
 const fakeFs = {
   async resolve(p) {
+    // fs 服务根固定为 '/workspace'（模拟 dsh 启动目录），会话 cwd 可以是任意项目
     const key = p === '.' ? '/workspace' : p
     return { targetKey: key, displayPath: key }
   },
@@ -303,6 +304,12 @@ const fakeFs = {
       return [
         { name: 'package.json', type: 'file', size: 50, target: { targetKey: '/workspace/proj/package.json', displayPath: '/workspace/proj/package.json' } },
         { name: 'src', type: 'directory', target: { targetKey: '/workspace/proj/src', displayPath: '/workspace/proj/src' } },
+      ]
+    }
+    if (p === '/teammate/other-proj') {
+      return [
+        { name: 'README.md', type: 'file', size: 20, target: { targetKey: '/teammate/other-proj/README.md', displayPath: '/teammate/other-proj/README.md' } },
+        { name: 'app.py', type: 'file', size: 40, target: { targetKey: '/teammate/other-proj/app.py', displayPath: '/teammate/other-proj/app.py' } },
       ]
     }
     return []
@@ -320,9 +327,12 @@ test('collectContext：正常采集并包含配置/入口文件', async () => {
   assert.ok(out.includes('{"name":"demo"}'))
 })
 
-test('collectContext：拒绝工作区之外的目录（路径遍历防护）', async () => {
-  await assert.rejects(
-    collectContext(fakeFs, '/workspace-else', CTX_CFG),
-    /Access denied: cwd outside workspace root/,
-  )
+test('collectContext：会话 cwd 在 fs 服务根之外也能采集（多工作区）', async () => {
+  // fs 服务根是 '/workspace'（dsh 启动目录），会话 cwd 在另一个项目
+  // '/teammate/other-proj'：不应被当作越权拒绝，否则标准/专家模式报
+  // “未能读取到项目上下文”。
+  const out = await collectContext(fakeFs, '/teammate/other-proj', CTX_CFG)
+  assert.ok(out.includes('项目根目录：/teammate/other-proj'))
+  assert.ok(out.includes('README.md'))
+  assert.ok(out.includes('app.py'))
 })
