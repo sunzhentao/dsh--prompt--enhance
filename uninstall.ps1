@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
   prompt-enhance 卸载脚本（安全）
 
@@ -23,7 +23,10 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $DshHome) { $DshHome = Join-Path $HOME '.dsh' }
 $pluginLink = Join-Path $DshHome 'plugins\prompt-enhance'
-$installDir = Join-Path $DshHome 'profiles\web\node_modules\prompt-enhance'
+$installDirs = @(
+  (Join-Path $DshHome 'profiles\web\node_modules\@lidaxi\prompt-enhance'),
+  (Join-Path $DshHome 'profiles\web\node_modules\prompt-enhance')
+)
 $webPkgFile = Join-Path $DshHome 'profiles\web\package.json'
 
 Write-Host "即将从 DSH（$DshHome）卸载 prompt-enhance 插件。" -ForegroundColor Yellow
@@ -33,36 +36,44 @@ if (-not $Force) {
   if ($yn -notmatch '^[yY]') { Write-Host "已取消。"; exit 0 }
 }
 
-# 1) 安装副本（若为联接/链接只删链接本身，绝不递归删目标）
-if (Test-Path $installDir) {
-  $it = Get-Item $installDir
-  if ($it.LinkType) {
-    try {
-      [System.IO.Directory]::Delete($installDir)
-      Write-Host "[1/3] 已删除安装副本联接（仅链接，目标保留）" -ForegroundColor Green
-    } catch {
-      & cmd /c "rmdir `"$installDir`"" | Out-Null
-      Write-Host "[1/3] 已删除安装副本联接（cmd rmdir 方式）" -ForegroundColor Green
+# 1) 安装副本（兼容新老包名；若为联接/链接只删链接本身，绝不递归删目标）
+foreach ($installDir in $installDirs) {
+  if (Test-Path $installDir) {
+    $it = Get-Item $installDir
+    if ($it.LinkType) {
+      try {
+        [System.IO.Directory]::Delete($installDir)
+        Write-Host "[1/3] 已删除安装副本联接 $installDir（仅链接，目标保留）" -ForegroundColor Green
+      } catch {
+        & cmd /c "rmdir `"$installDir`"" | Out-Null
+        Write-Host "[1/3] 已删除安装副本联接 $installDir（cmd rmdir 方式）" -ForegroundColor Green
+      }
+    } else {
+      Remove-Item $installDir -Recurse -Force
+      Write-Host "[1/3] 已删除安装副本 $installDir" -ForegroundColor Green
     }
   } else {
-    Remove-Item $installDir -Recurse -Force
-    Write-Host "[1/3] 已删除安装副本 $installDir" -ForegroundColor Green
+    Write-Host "[1/3] 安装副本不存在，跳过: $installDir"
   }
-} else {
-  Write-Host "[1/3] 安装副本不存在，跳过"
 }
 
 # 2) package.json 注册
 if (Test-Path $webPkgFile) {
   $pkg = Get-Content $webPkgFile -Raw | ConvertFrom-Json
   $changed = $false
-  if ($pkg.dependencies -and $pkg.dependencies.PSObject.Properties['prompt-enhance']) {
-    $pkg.dependencies.PSObject.Properties.Remove('prompt-enhance')
-    $changed = $true
+  foreach ($depKey in @('prompt-enhance', '@lidaxi/prompt-enhance')) {
+    if ($pkg.dependencies -and $pkg.dependencies.PSObject.Properties[$depKey]) {
+      $pkg.dependencies.PSObject.Properties.Remove($depKey)
+      $changed = $true
+    }
   }
-  if ($pkg.dsh -and $pkg.dsh.profile -and @($pkg.dsh.profile.bundles) -contains 'prompt-enhance') {
-    $pkg.dsh.profile.bundles = @($pkg.dsh.profile.bundles | Where-Object { $_ -ne 'prompt-enhance' })
-    $changed = $true
+  if ($pkg.dsh -and $pkg.dsh.profile) {
+    $bundles = @($pkg.dsh.profile.bundles)
+    $filtered = @($bundles | Where-Object { $_ -ne 'prompt-enhance' -and $_ -ne '@lidaxi/prompt-enhance' })
+    if ($filtered.Count -ne $bundles.Count) {
+      $pkg.dsh.profile.bundles = $filtered
+      $changed = $true
+    }
   }
   if ($changed) {
     [System.IO.File]::WriteAllText($webPkgFile, ($pkg | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false)))

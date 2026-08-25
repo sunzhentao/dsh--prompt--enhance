@@ -1,8 +1,8 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
   prompt-enhance 安装 / 同步脚本（幂等，可重复执行）
   注意：本脚本是本地开发/源码同步工具；面向用户的正式安装请使用：
-    dsh plugin --profile web add prompt-enhance
+    dsh plugin --profile web add @lidaxi/prompt-enhance
 
   用途：
     - 首次安装：创建源码联接、同步安装副本、注册依赖与 bundle
@@ -31,7 +31,7 @@ if (-not $DshHome) { $DshHome = Join-Path $HOME '.dsh' }
 $pluginsDir = Join-Path $DshHome 'plugins'
 $pluginLink = Join-Path $pluginsDir 'prompt-enhance'
 $webDir     = Join-Path $DshHome 'profiles\web'
-$installDir = Join-Path $webDir 'node_modules\prompt-enhance'
+$installDir = Join-Path $webDir 'node_modules\@lidaxi\prompt-enhance'
 $webPkgFile = Join-Path $webDir 'package.json'
 $syncFiles  = @('lib\index.js', 'lib\client.js', 'package.json', 'README.md', 'LICENSE', 'cordis.patch.yml')
 
@@ -101,16 +101,16 @@ if (-not (Test-Path $webPkgFile)) {
   if (-not $pkg.dependencies) {
     $pkg | Add-Member -NotePropertyName dependencies -NotePropertyValue @{} -Force
   }
-  if (-not $pkg.dependencies.'prompt-enhance') {
-    $pkg.dependencies.'prompt-enhance' = 'file:../../plugins/prompt-enhance'
+  if (-not $pkg.dependencies.'@lidaxi/prompt-enhance') {
+    $pkg.dependencies.'@lidaxi/prompt-enhance' = 'file:../../plugins/prompt-enhance'
     $changed = $true
   }
 
   if (-not $pkg.dsh) { $pkg | Add-Member -NotePropertyName dsh -NotePropertyValue @{} -Force }
   if (-not $pkg.dsh.profile) { $pkg.dsh | Add-Member -NotePropertyName profile -NotePropertyValue @{} -Force }
   if (-not $pkg.dsh.profile.bundles) { $pkg.dsh.profile | Add-Member -NotePropertyName bundles -NotePropertyValue @() -Force }
-  if (@($pkg.dsh.profile.bundles) -notcontains 'prompt-enhance') {
-    $pkg.dsh.profile.bundles = @($pkg.dsh.profile.bundles) + 'prompt-enhance'
+  if (@($pkg.dsh.profile.bundles) -notcontains '@lidaxi/prompt-enhance') {
+    $pkg.dsh.profile.bundles = @($pkg.dsh.profile.bundles) + '@lidaxi/prompt-enhance'
     $changed = $true
   }
 

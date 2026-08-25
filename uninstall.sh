@@ -14,7 +14,8 @@ while getopts "f" opt; do
 done
 
 PLUGIN_LINK="$DSH_HOME/plugins/prompt-enhance"
-INSTALL_DIR="$DSH_HOME/profiles/web/node_modules/prompt-enhance"
+INSTALL_DIR_NEW="$DSH_HOME/profiles/web/node_modules/@lidaxi/prompt-enhance"
+INSTALL_DIR_OLD="$DSH_HOME/profiles/web/node_modules/prompt-enhance"
 WEB_PKG="$DSH_HOME/profiles/web/package.json"
 
 echo "即将从 DSH（$DSH_HOME）卸载 prompt-enhance 插件。"
@@ -28,20 +29,22 @@ if [[ "$FORCE" != true ]]; then
   fi
 fi
 
-# 1) 安装副本
-if [[ -e "$INSTALL_DIR" ]]; then
-  rm -rf "$INSTALL_DIR"
-  echo "[1/3] 已删除安装副本 $INSTALL_DIR"
-else
-  echo "[1/3] 安装副本不存在，跳过"
-fi
+# 1) 安装副本（兼容新老包名）
+for d in "$INSTALL_DIR_NEW" "$INSTALL_DIR_OLD"; do
+  if [[ -e "$d" ]]; then
+    rm -rf "$d"
+    echo "[1/3] 已删除安装副本 $d"
+  else
+    echo "[1/3] 安装副本不存在，跳过: $d"
+  fi
+done
 
 # 2) package.json 注册
 if [[ -f "$WEB_PKG" ]]; then
   if command -v jq >/dev/null 2>&1; then
     TMP="$(mktemp)"
-    jq 'del(.dependencies["prompt-enhance"]) |
-        .dsh.profile.bundles |= map(select(. != "prompt-enhance"))' \
+    jq 'del(.dependencies["prompt-enhance"], .dependencies["@lidaxi/prompt-enhance"]) |
+        .dsh.profile.bundles |= map(select(. != "prompt-enhance" and . != "@lidaxi/prompt-enhance"))' \
        "$WEB_PKG" > "$TMP"
     mv "$TMP" "$WEB_PKG"
     echo "[2/3] 已移除 profiles/web/package.json 中的注册"

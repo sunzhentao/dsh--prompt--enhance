@@ -92,13 +92,13 @@ DSH Web profile 的静态插件：随 harness 启动自动加载，**无需每�
 
 ```bash
 # 安装
-dsh plugin --profile web add prompt-enhance
+dsh plugin --profile web add @lidaxi/prompt-enhance
 
 # 升级
-dsh plugin --profile web update prompt-enhance
+dsh plugin --profile web update @lidaxi/prompt-enhance
 
 # 卸载
-dsh plugin --profile web remove prompt-enhance
+dsh plugin --profile web remove @lidaxi/prompt-enhance
 ```
 
 安装后重启 `dsh web` 并刷新页面即可。`dsh plugin` 会自动把本包加入 `dsh.profile.bundles`（包内 `dsh.bundle.patch` 组合补丁与 `dsh.client.inject` 浏览器半声明随 bundle 自动生效），无需手工编辑任何文件。
@@ -126,9 +126,9 @@ Copy-Item -Recurse <repo> "$HOME\.dsh\plugins\prompt-enhance"
 
 # 2) 注册依赖与 bundle（编辑 $HOME\.dsh\profiles\web\package.json）：
 #    dependencies 增加：
-#      "prompt-enhance": "file:../../plugins/prompt-enhance"
+#      "@lidaxi/prompt-enhance": "file:../../plugins/prompt-enhance"
 #    dsh.profile.bundles 数组增加：
-#      "prompt-enhance"
+#      "@lidaxi/prompt-enhance"
 #    （插件的 cordis.patch.yml 组合补丁与 dsh.client.inject 声明会随 bundle 自动生效）
 
 # 3) 重启 dsh web，刷新页面

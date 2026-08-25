@@ -3,7 +3,7 @@ set -euo pipefail
 
 # prompt-enhance 安装 / 同步脚本（幂等，可重复执行）
 # 注意：本脚本是本地开发/源码同步工具；面向用户的正式安装请使用：
-#   dsh plugin --profile web add prompt-enhance
+#   dsh plugin --profile web add @lidaxi/prompt-enhance
 # 用法：在仓库目录执行 ./install.sh
 # 或指定 DSH 主目录：DSH_HOME=/path/to/.dsh ./install.sh
 
@@ -19,7 +19,7 @@ echo "==> 插件源码: $SRC"
 echo "==> DSH 主目录: $DSH_HOME"
 
 PLUGIN_LINK="$DSH_HOME/plugins/prompt-enhance"
-INSTALL_DIR="$DSH_HOME/profiles/web/node_modules/prompt-enhance"
+INSTALL_DIR="$DSH_HOME/profiles/web/node_modules/@lidaxi/prompt-enhance"
 WEB_PKG="$DSH_HOME/profiles/web/package.json"
 SYNC_FILES=("lib/index.js" "lib/client.js" "package.json" "README.md" "LICENSE" "cordis.patch.yml")
 
@@ -91,16 +91,16 @@ else
   if command -v jq >/dev/null 2>&1; then
     TMP="$(mktemp)"
     jq --arg dep "file:../../plugins/prompt-enhance" \
-       '.dependencies["prompt-enhance"] = $dep |
-        .dsh.profile.bundles += ["prompt-enhance"] |
+       '.dependencies["@lidaxi/prompt-enhance"] = $dep |
+        .dsh.profile.bundles += ["@lidaxi/prompt-enhance"] |
         .dsh.profile.bundles |= unique' \
        "$WEB_PKG" > "$TMP"
     mv "$TMP" "$WEB_PKG"
     echo "[4/4] 已在 profiles/web/package.json 注册依赖与 bundle"
   else
     echo "警告: 未安装 jq，无法自动修改 package.json。请手动添加依赖和 bundle。" >&2
-    echo "   依赖: \"prompt-enhance\": \"file:../../plugins/prompt-enhance\"" >&2
-    echo "   bundle: \"prompt-enhance\"" >&2
+    echo "   依赖: \"@lidaxi/prompt-enhance\": \"file:../../plugins/prompt-enhance\"" >&2
+    echo "   bundle: \"@lidaxi/prompt-enhance\"" >&2
   fi
 fi
 
