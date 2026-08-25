@@ -13,4 +13,4 @@
 #           effort: none
 - insert:
     - id: prompt-enhance
-      name: prompt-enhance
+      name: '@lidaxi/prompt-enhance'

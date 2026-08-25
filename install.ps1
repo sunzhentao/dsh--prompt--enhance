@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
   prompt-enhance 安装 / 同步脚本（幂等，可重复执行）
   注意：本脚本是本地开发/源码同步工具；面向用户的正式安装请使用：
@@ -99,10 +99,11 @@ if (-not (Test-Path $webPkgFile)) {
   $changed = $false
 
   if (-not $pkg.dependencies) {
-    $pkg | Add-Member -NotePropertyName dependencies -NotePropertyValue @{} -Force
+    $pkg | Add-Member -NotePropertyName dependencies -NotePropertyValue ([pscustomobject]@{}) -Force
   }
   if (-not $pkg.dependencies.'@lidaxi/prompt-enhance') {
-    $pkg.dependencies.'@lidaxi/prompt-enhance' = 'file:../../plugins/prompt-enhance'
+    # PSCustomObject 上不能直接给不存在的属性赋值（ConvertFrom-Json 产物），用 Add-Member
+    $pkg.dependencies | Add-Member -NotePropertyName '@lidaxi/prompt-enhance' -NotePropertyValue 'file:../../plugins/prompt-enhance' -Force
     $changed = $true
   }
 

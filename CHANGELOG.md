@@ -2,6 +2,14 @@
 
 所有显著更改都将记录在此文件中。
 
+## [1.3.1] - 2026-08-25
+
+### 修复
+
+- **启动崩溃：`Cannot find package 'prompt-enhance'`**：`cordis.patch.yml` 插入行的 `name` 缺少 scope（`prompt-enhance` → `@lidaxi/prompt-enhance`），loader 按 `name` 解析包导致 `ERR_MODULE_NOT_FOUND`。
+- **浏览器端加载失败：`loaded without registering "@lidaxi/prompt-enhance"`**：`lib/client.js` 的 `window.__ModuleLoader__.load({ id })` 注册 id 缺少 scope，与包名不一致导致 client-modules 校验失败。
+- **install.ps1 第 4 步抛错**：给 PSCustomObject 直接赋值 `@` 开头属性名失败，改用 `Add-Member` 注册依赖，并统一依赖对象为 `[pscustomobject]`。
+
 ## [1.3.0] - 2026-08-25
 
 ### 发布
