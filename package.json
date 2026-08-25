@@ -1,6 +1,6 @@
 {
   "name": "@lidaxi/prompt-enhance",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "提示词增强（DSH 通用插件）：三种模式（基础/标准/专家）读取会话工作区项目上下文并调用 LLM 增强输入框提示词，支持结果对比确认、采用后撤回、失败模型回退链、按模型能力自动适配推理档位（网关不支持时自动去参重试）、待确认问答闭环（逐条回答后带答案重新增强）、组合行 config 可配置、可取消。Host 半提供 /api/prompt-enhance/enhance；浏览器半在 composer 工具行注册模式选择与 ✦ 按钮、对比面板与忙碌状态卡。随 harness 启动自动加载，无需手动重新加载。",
   "type": "module",
   "main": "lib/index.js",
