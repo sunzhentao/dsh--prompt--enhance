@@ -49,7 +49,7 @@
 ### 开发环境
 
 - Node.js >= 18
-- 已安装 DSH 并启用 `web` profile
+- 已安装 DSH 并启用 `web` profile（通过 npm 分发的用户安装用 `dsh plugin --profile web add prompt-enhance`；仓库内脚本 `install.sh` / `install.ps1` 用于本地源码开发）
 
 克隆仓库后：
 

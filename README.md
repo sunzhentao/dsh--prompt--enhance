@@ -86,26 +86,39 @@ DSH Web profile 的静态插件：随 harness 启动自动加载，**无需每�
 
 前提：已安装 DeepSeek Harness 并启用 web profile（`dsh web`）。
 
-**方式一（推荐）：一键脚本**
+**方式一（推荐）：npm 一键安装**
 
-仓库自带 `install.ps1`，clone 后在仓库目录直接执行：
+插件已发布到 npm registry，使用 DSH 官方插件命令安装：
+
+```bash
+# 安装
+dsh plugin --profile web add prompt-enhance
+
+# 升级
+dsh plugin --profile web update prompt-enhance
+
+# 卸载
+dsh plugin --profile web remove prompt-enhance
+```
+
+安装后重启 `dsh web` 并刷新页面即可。`dsh plugin` 会自动把本包加入 `dsh.profile.bundles`（包内 `dsh.bundle.patch` 组合补丁与 `dsh.client.inject` 浏览器半声明随 bundle 自动生效），无需手工编辑任何文件。
+
+**方式二：从源码安装（本地开发 / 贡献者）**
+
+仓库自带 `install.ps1` / `install.sh`，clone 后在仓库目录直接执行：
 
 ```powershell
 .\install.ps1
 ```
-
-脚本会自动：创建源码联接 → 同步安装副本（含语法与一致性校验）→ 注册依赖与 bundle。之后**改完代码只需重新执行脚本 + 重启 dsh web**。卸载用 `.\uninstall.ps1`（安全：只删联接/副本/注册，保留本仓库源码）。
-
-**macOS / Linux** 使用 `install.sh`：
 
 ```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-卸载用 `./uninstall.sh`（同样安全：只删联接/副本/注册，保留仓库源码）。
+脚本会自动：创建源码联接 → 同步安装副本（含语法与一致性校验）→ 注册依赖与 bundle（`file:` 依赖）。改完代码只需重新执行脚本 + 重启 dsh web。卸载用 `.\uninstall.ps1` / `./uninstall.sh`（安全：只删联接/副本/注册，保留本仓库源码）。
 
-**方式二：手动**
+**方式三：手动**
 
 ```powershell
 # 1) 把插件源码放到 DSH 插件目录（<repo> = 本仓库 clone 路径）
@@ -125,7 +138,7 @@ Copy-Item -Recurse <repo> "$HOME\.dsh\plugins\prompt-enhance"
 
 ## 开发与调试
 
-- 改完源码需同步到安装副本并重启 harness 才生效（也可直接重跑 `install.sh` / `install.ps1`）：
+- 本地源码开发：改完源码后重跑 `install.sh` / `install.ps1` 同步到安装副本，再重启 harness 生效：
 
 ```powershell
 Copy-Item "$HOME\.dsh\plugins\prompt-enhance\lib\index.js", "$HOME\.dsh\plugins\prompt-enhance\lib\client.js" "$HOME\.dsh\profiles\web\node_modules\prompt-enhance\lib\" -Force

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # prompt-enhance 安装 / 同步脚本（幂等，可重复执行）
+# 注意：本脚本是本地开发/源码同步工具；面向用户的正式安装请使用：
+#   dsh plugin --profile web add prompt-enhance
 # 用法：在仓库目录执行 ./install.sh
 # 或指定 DSH 主目录：DSH_HOME=/path/to/.dsh ./install.sh
 
