@@ -2,6 +2,21 @@
 
 所有显著更改都将记录在此文件中。
 
+## [1.3.2] - 2026-08-25
+
+### 变更
+
+- **最低 Node 版本提升至 ≥22**：Node 18/20 已 EOL，`engines` 与 CI 矩阵（22/24）对齐；发布工作流改用 Node 24。
+
+### 工程
+
+- GitHub Actions 升级至 `checkout@v5` / `setup-node@v5`（Node 24 运行时），消除 Node 20 运行时弃用警告。
+- `package-lock.json` 根名称修正为 `@lidaxi/prompt-enhance`（随 1.3.0 scoped 改名遗留）。
+
+### 文档
+
+- README「开发与调试」同步命令目标路径改为 scoped 目录 `node_modules/@lidaxi/prompt-enhance`。
+
 ## [1.3.1] - 2026-08-25
 
 ### 修复
