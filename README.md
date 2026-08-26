@@ -1,5 +1,9 @@
 # prompt-enhance（提示词增强 · DSH 通用插件）
 
+[![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/plugins/sunzhentao/dsh-prompt-enhance)
+
+💡 觉得好用？去 [dsh-plugin.org](https://dsh-plugin.org/plugins/sunzhentao/dsh-prompt-enhance) 查看插件详情并点个 ⭐，支持一下作者～
+
 DSH Web profile 的静态插件：随 harness 启动自动加载，**无需每次手动重新加载**。任何机器、任何经 DSH 注册的模型/网关均可直接使用；模型能力差异由插件在运行时自动适配，无需修改代码。
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
