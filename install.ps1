@@ -59,29 +59,34 @@ if (-not (Test-Path $webDir)) {
 }
 
 # ---------- 3. 同步安装副本 ----------
-New-Item -ItemType Directory $installDir -Force | Out-Null
-New-Item -ItemType Directory (Join-Path $installDir 'lib') -Force | Out-Null
-foreach ($f in $syncFiles) {
-  $s = Join-Path $src $f
-  if (Test-Path $s) {
-    $d = Join-Path $installDir $f
-    # 先删目标再复制：npm file: 安装可能产生硬链接，直接覆盖会报“无法覆盖自身”
-    if (Test-Path $d) { Remove-Item $d -Force }
-    Copy-Item $s $d -Force
-  }
-}
-$mismatch = @()
-foreach ($f in $syncFiles) {
-  $s = Join-Path $src $f
-  $d = Join-Path $installDir $f
-  if (Test-Path $s) {
-    if (-not (Test-Path $d) -or (Get-FileHash $s).Hash -ne (Get-FileHash $d).Hash) { $mismatch += $f }
-  }
-}
-if ($mismatch.Count -eq 0) {
-  Write-Host "[3/4] 安装副本已同步，6 个文件校验一致" -ForegroundColor Green
+$installLink = Get-Item $installDir -ErrorAction SilentlyContinue
+if ($installLink -and $installLink.LinkType) {
+  Write-Host "[3/4] 安装副本为联接，跳过同步（源码改动已即时生效）" -ForegroundColor Green
 } else {
-  throw "安装副本校验不一致: $($mismatch -join ', ')"
+  New-Item -ItemType Directory $installDir -Force | Out-Null
+  New-Item -ItemType Directory (Join-Path $installDir 'lib') -Force | Out-Null
+  foreach ($f in $syncFiles) {
+    $s = Join-Path $src $f
+    if (Test-Path $s) {
+      $d = Join-Path $installDir $f
+      # 先删目标再复制：npm file: 安装可能产生硬链接，直接覆盖会报“无法覆盖自身”
+      if (Test-Path $d) { Remove-Item $d -Force }
+      Copy-Item $s $d -Force
+    }
+  }
+  $mismatch = @()
+  foreach ($f in $syncFiles) {
+    $s = Join-Path $src $f
+    $d = Join-Path $installDir $f
+    if (Test-Path $s) {
+      if (-not (Test-Path $d) -or (Get-FileHash $s).Hash -ne (Get-FileHash $d).Hash) { $mismatch += $f }
+    }
+  }
+  if ($mismatch.Count -eq 0) {
+    Write-Host "[3/4] 安装副本已同步，6 个文件校验一致" -ForegroundColor Green
+  } else {
+    throw "安装副本校验不一致: $($mismatch -join ', ')"
+  }
 }
 
 # 语法校验（改坏代码时在重启前就报错）

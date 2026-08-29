@@ -2,6 +2,27 @@
 
 所有显著更改都将记录在此文件中。
 
+## [1.4.0] - 2026-08-29
+
+### 功能
+
+- **会话内增强历史（轻量版）**：每次成功增强/修订的结果自动记入会话内历史（内存，上限 20 条，刷新页面即清空）；对比面板新增「历史版本」折叠区，可一键采用任一历史版本（沿用原文变更保护，采用后仍可撤回），支持一键清空历史。
+- **待确认清单解析健壮性**：单独的“空列表项”（如无内容的 `-`）不再被当作上一项的续行污染问题文本，直接忽略。
+
+### 工程
+
+- 新增 `npm run typecheck`（`tsc --noEmit` 基于 JSDoc 的类型检查），CI 增加 Type check 步骤；新增 `typings/dsh.d.ts` / `typings/global.d.ts`，Host 与浏览器半的 JSDoc 从宽泛 `{object}` 收紧为真实接口类型。
+- 新增 `test/client.test.js`（9 个用例：待确认清单解析、错误提示映射、增强历史），测试总数 29 → 38。
+
+### 修复
+
+- **诊断环并发竞争**：`markRequest` 改为按请求记录对象更新，避免并发增强请求互相覆盖状态与取消标记（`lib/index.js`）。
+- **配置健壮性**：`resolveConfig` 对模式数值参数（`depth`/`treeLines`/`treeChars`/`fileChars`/`contentChars`/`maxTokens`）强制正整数，`temperature` 钳制到 [0, 2]，非法配置不再透传给网关。
+- **请求体上限**：`readBody` 改为按字节统计，1MB 上限对纯中文请求体同样生效。
+- **空正文处理**：模型仅输出待确认段时返回 `EMPTY_OUTPUT` 错误码，不再返回 `ok:true` 空正文导致客户端误判。
+- **基础模式文案**：带回答重写时不再出现不存在的“项目上下文”字样。
+- **发布工程**：`publish.yml` Verify 补 `typecheck`；新增 `prepublishOnly`；`@eslint/js` 显式声明为 devDependency；`@types/node` 与 engines 对齐（^22）；`./client` 导出补充类型声明（`lib/client.d.ts`）；安装/卸载脚本对符号链接安装副本跳过同步或仅删链接本身。
+
 ## [1.3.3] - 2026-08-25
 
 ### 修复

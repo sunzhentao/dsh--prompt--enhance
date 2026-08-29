@@ -24,7 +24,7 @@ jobs:
         run: npm ci
 
       - name: Verify
-        run: npm run check && npm run lint && npm test
+        run: npm run check && npm run typecheck && npm run lint && npm test
 
       - name: Publish to npm
         run: npm publish --provenance --access public

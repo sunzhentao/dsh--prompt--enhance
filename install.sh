@@ -42,36 +42,41 @@ if [[ ! -d "$DSH_HOME/profiles/web" ]]; then
   exit 0
 fi
 
-# 3) 同步安装副本
-mkdir -p "$INSTALL_DIR/lib"
-for f in "${SYNC_FILES[@]}"; do
-  src_file="$SRC/$f"
-  dst_file="$INSTALL_DIR/$f"
-  if [[ -f "$src_file" ]]; then
-    if [[ -e "$dst_file" ]]; then
-      rm -f "$dst_file"
-    fi
-    cp "$src_file" "$dst_file"
-  fi
-done
-
-# 校验一致性
-MISMATCH=()
-for f in "${SYNC_FILES[@]}"; do
-  src_file="$SRC/$f"
-  dst_file="$INSTALL_DIR/$f"
-  if [[ -f "$src_file" ]]; then
-    if [[ ! -f "$dst_file" ]] || ! cmp -s "$src_file" "$dst_file"; then
-      MISMATCH+=("$f")
-    fi
-  fi
-done
-
-if [[ ${#MISMATCH[@]} -eq 0 ]]; then
-  echo "[3/4] 安装副本已同步，6 个文件校验一致"
+# 3) 同步安装副本（若安装副本是符号链接则跳过同步：源码改动即时生效，
+#    避免 rm -f 通过链接删到源码本身）
+if [[ -L "$INSTALL_DIR" ]]; then
+  echo "[3/4] 安装副本为符号链接，跳过同步（源码改动已即时生效）"
 else
-  echo "错误: 安装副本校验不一致: ${MISMATCH[*]}" >&2
-  exit 1
+  mkdir -p "$INSTALL_DIR/lib"
+  for f in "${SYNC_FILES[@]}"; do
+    src_file="$SRC/$f"
+    dst_file="$INSTALL_DIR/$f"
+    if [[ -f "$src_file" ]]; then
+      if [[ -e "$dst_file" ]]; then
+        rm -f "$dst_file"
+      fi
+      cp "$src_file" "$dst_file"
+    fi
+  done
+
+  # 校验一致性
+  MISMATCH=()
+  for f in "${SYNC_FILES[@]}"; do
+    src_file="$SRC/$f"
+    dst_file="$INSTALL_DIR/$f"
+    if [[ -f "$src_file" ]]; then
+      if [[ ! -f "$dst_file" ]] || ! cmp -s "$src_file" "$dst_file"; then
+        MISMATCH+=("$f")
+      fi
+    fi
+  done
+
+  if [[ ${#MISMATCH[@]} -eq 0 ]]; then
+    echo "[3/4] 安装副本已同步，6 个文件校验一致"
+  else
+    echo "错误: 安装副本校验不一致: ${MISMATCH[*]}" >&2
+    exit 1
+  fi
 fi
 
 # 语法校验

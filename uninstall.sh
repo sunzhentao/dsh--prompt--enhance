@@ -31,7 +31,10 @@ fi
 
 # 1) 安装副本（兼容新老包名）
 for d in "$INSTALL_DIR_NEW" "$INSTALL_DIR_OLD"; do
-  if [[ -e "$d" ]]; then
+  if [[ -L "$d" ]]; then
+    rm -f "$d"
+    echo "[1/3] 已删除安装副本符号链接 $d（仅链接，目标保留）"
+  elif [[ -e "$d" ]]; then
     rm -rf "$d"
     echo "[1/3] 已删除安装副本 $d"
   else
