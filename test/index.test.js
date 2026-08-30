@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   resolveConfig,
   collectContext,
+  collectHistory,
   buildSystem,
   normalizeAnswers,
   buildReviseSystem,
@@ -335,4 +336,160 @@ test('collectContext：会话 cwd 在 fs 服务根之外也能采集（多工作
   assert.ok(out.includes('项目根目录：/teammate/other-proj'))
   assert.ok(out.includes('README.md'))
   assert.ok(out.includes('app.py'))
+})
+
+// ---------- collectHistory ----------
+
+function fakeSession(msgs) {
+  return { deriveMessages: () => msgs }
+}
+
+const HIST_CFG = { historyTurns: 3, historyChars: 6000 }
+
+test('collectHistory：不可用场景静默返回空串', () => {
+  assert.equal(collectHistory(null, HIST_CFG), '')
+  assert.equal(collectHistory({}, HIST_CFG), '')
+  assert.equal(collectHistory({ deriveMessages: () => 'nope' }, HIST_CFG), '')
+  assert.equal(collectHistory({ deriveMessages: () => { throw new Error('boom') } }, HIST_CFG), '')
+  assert.equal(collectHistory(fakeSession([]), HIST_CFG), '')
+  assert.equal(collectHistory(fakeSession([]), { historyTurns: 0, historyChars: 6000 }), '')
+})
+
+test('collectHistory：过滤工具/插件/推理块并配对问题与结论', () => {
+  const msgs = [
+    { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '实现用户注册' }] },
+    { role: 'assistant', source: { kind: 'tool' }, content: [{ type: 'tool-call', id: 't1' }] },
+    { role: 'user', source: { kind: 'tool' }, content: [{ type: 'tool-result', toolCallId: 't1', text: '/src/a.ts 文件内容' }] },
+    { role: 'assistant', source: { kind: 'model' }, content: [{ type: 'reasoning', text: '深层思考' }, { type: 'text', text: '用 FastAPI 实现，参考 src/api.py' }] },
+    { role: 'user', source: { kind: 'plugin' }, content: [{ type: 'text', text: '注入的指令' }] },
+  ]
+  const out = collectHistory(fakeSession(msgs), HIST_CFG)
+  assert.ok(out.startsWith('=== 会话历史上下文（最近 1 轮） ==='))
+  assert.ok(out.includes('用户：实现用户注册'))
+  assert.ok(out.includes('助手结论：用 FastAPI 实现'))
+  assert.ok(!out.includes('tool-call'))
+  assert.ok(!out.includes('src/a.ts'))
+  assert.ok(!out.includes('注入的指令'))
+  assert.ok(!out.includes('深层思考'))
+})
+
+test('collectHistory：窗口只保留最近 N 轮', () => {
+  const mkQ = (i) => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '问' + i }] })
+  const mkA = (i) => ({ role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: '答' + i }] })
+  const msgs = []
+  for (let i = 1; i <= 5; i++) msgs.push(mkQ(i), mkA(i))
+  const out = collectHistory(fakeSession(msgs), { historyTurns: 2, historyChars: 6000 })
+  assert.ok(out.includes('最近 2 轮'))
+  assert.ok(!out.includes('用户：问1'))
+  assert.ok(out.includes('用户：问4'))
+  assert.ok(out.includes('用户：问5'))
+})
+
+test('collectHistory：助手结论尾部截断并标记', () => {
+  const longA = 'x'.repeat(1000)
+  const msgs = [
+    { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '问题' }] },
+    { role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: longA }] },
+  ]
+  const out = collectHistory(fakeSession(msgs), HIST_CFG)
+  assert.ok(out.includes('…[历史截断]'))
+  assert.ok(out.trimEnd().endsWith('x'))
+  assert.ok(out.length < 900)
+})
+
+test('collectHistory：字符顶从最旧一轮开始丢弃', () => {
+  const mkQ = (i) => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '问' + i + 'y'.repeat(30) }] })
+  const mkA = (i) => ({ role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: '答' + i + 'z'.repeat(30) }] })
+  const msgs = []
+  for (let i = 1; i <= 3; i++) msgs.push(mkQ(i), mkA(i))
+  const out = collectHistory(fakeSession(msgs), { historyTurns: 3, historyChars: 120 })
+  assert.ok(out.includes('最近 1 轮'))
+  assert.ok(!out.includes('用户：问1'))
+  assert.ok(!out.includes('用户：问2'))
+  assert.ok(out.includes('用户：问3'))
+})
+
+// ---------- 会话历史接入 ----------
+
+test('resolveConfig：history 默认值与 ≥0 裁剪', () => {
+  const cfg = resolveConfig(undefined)
+  assert.equal(cfg.modes.basic.historyTurns, 0)
+  assert.equal(cfg.modes.basic.historyChars, 0)
+  assert.equal(cfg.modes.standard.historyTurns, 3)
+  assert.equal(cfg.modes.standard.historyChars, 6000)
+  assert.equal(cfg.modes.expert.historyTurns, 3)
+  assert.equal(cfg.modes.expert.historyChars, 9000)
+  const over = resolveConfig({ modes: { standard: { historyTurns: -2, historyChars: 0 } } })
+  assert.equal(over.modes.standard.historyTurns, 0)
+  assert.equal(over.modes.standard.historyChars, 0)
+})
+
+test('buildUserMessage：会话历史段插在项目上下文之前', () => {
+  const mode = { needsContext: true }
+  const hist = '=== 会话历史上下文（最近 2 轮） ===\n用户：A\n助手结论：B'
+  const out = buildUserMessage(mode, 'CTX', '草稿', [], '', hist)
+  assert.ok(out.startsWith('=== 会话历史上下文'))
+  assert.ok(out.includes('项目上下文：\nCTX'))
+  assert.ok(out.includes('原始提示词：\n草稿'))
+  // 无历史时格式不变
+  assert.equal(
+    buildUserMessage(mode, 'CTX', '草稿', [], ''),
+    '项目上下文：\nCTX\n\n原始提示词：\n草稿\n\n请基于项目上下文重写并增强上面的原始提示词，直接输出增强结果。',
+  )
+  // 修订轮次同样携带历史
+  const revise = buildReviseUser('草稿', 'v1', [{ question: 'Q', answer: 'A' }], hist)
+  assert.ok(revise.startsWith('会话历史上下文：'))
+  assert.ok(revise.includes('原始提示词：\n草稿'))
+})
+
+// ---------- 智能项目上下文 ----------
+
+test('collectContext：草稿关键词命中文件优先读取', async () => {
+  const calls = []
+  const fs2 = {
+    async resolve(p) { return { targetKey: p, displayPath: p } },
+    async stat() { return { type: 'directory' } },
+    async listDir(t) {
+      const p = typeof t === 'string' ? t : t.targetKey
+      if (p === '/workspace/proj') {
+        return [
+          { name: 'main.py', type: 'file', size: 100, target: { targetKey: '/workspace/proj/main.py', displayPath: '/workspace/proj/main.py' } },
+          { name: 'app.py', type: 'file', size: 100, target: { targetKey: '/workspace/proj/app.py', displayPath: '/workspace/proj/app.py' } },
+        ]
+      }
+      return []
+    },
+    async readText(t) { calls.push(typeof t === 'string' ? t : t.targetKey); return 'CODE' },
+  }
+  const cfg = { depth: 2, treeLines: 160, treeChars: 7000, fileChars: 6000, contentChars: 200 }
+  const out = await collectContext(fs2, '/workspace/proj', cfg, '给 main 入口加登录')
+  assert.deepEqual(calls, ['/workspace/proj/main.py', '/workspace/proj/app.py'])
+  assert.ok(out.includes('入口文件: main.py'))
+  assert.ok(out.includes('入口文件: app.py'))
+})
+
+test('collectContext：AGENTS.md 作为项目事实文件优先读取', async () => {
+  const fs3 = {
+    async resolve(p) { return { targetKey: p, displayPath: p } },
+    async stat() { return { type: 'directory' } },
+    async listDir(t) {
+      const p = typeof t === 'string' ? t : t.targetKey
+      if (p === '/workspace/proj') {
+        return [
+          { name: 'AGENTS.md', type: 'file', size: 500, target: { targetKey: '/workspace/proj/AGENTS.md', displayPath: '/workspace/proj/AGENTS.md' } },
+          { name: 'package.json', type: 'file', size: 50, target: { targetKey: '/workspace/proj/package.json', displayPath: '/workspace/proj/package.json' } },
+        ]
+      }
+      return []
+    },
+    async readText(t) {
+      const p = typeof t === 'string' ? t : t.targetKey
+      return p.endsWith('AGENTS.md') ? '项目事实：技术栈 FastAPI' : '{"name":"demo"}'
+    },
+  }
+  const out = await collectContext(fs3, '/workspace/proj', CTX_CFG, '')
+  const ai = out.indexOf('项目事实文件: AGENTS.md')
+  const pi = out.indexOf('配置文件: package.json')
+  assert.ok(ai >= 0 && pi > ai)
+  assert.ok(out.includes('技术栈 FastAPI'))
 })

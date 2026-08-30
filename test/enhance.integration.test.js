@@ -187,3 +187,41 @@ test('enhance 路由：模型全部失败返回 ALL_MODELS_FAILED', async () => 
   assert.equal(payload.code, 'ALL_MODELS_FAILED')
   assert.ok(payload.message.includes('模型调用全部失败'))
 })
+
+test('enhance 路由：标准模式带会话历史（进入用户消息并记录 historyChars）', async () => {
+  const sessions = {
+    get: () => ({
+      header: { cwd: '/workspace/proj' },
+      deriveMessages: () => [
+        { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '之前讨论过登录方案' }] },
+        { role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: '就用 FastAPI' }] },
+      ],
+    }),
+  }
+  const seen = []
+  const llm = {
+    listProviders: () => [{ id: 'p1' }],
+    listModels: async () => [{ id: 'm1' }],
+    async * stream(opts) {
+      seen.push(opts)
+      yield { type: 'text-delta', text: '增强正文' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+  const { ctx, routes } = makeCtx({ sessions, llm, agentDefaultModel: DEFAULT_MODEL })
+  apply(ctx, {})
+  const handler = routes['/api/prompt-enhance/enhance']
+  const res = makeRes()
+  await handler(makeReq({ sessionId: 's1', draft: '写登录接口', mode: 'standard' }), res)
+  const payload = JSON.parse(res.body)
+  assert.equal(payload.ok, true)
+  const userText = seen[0].messages[0].content[0].text
+  assert.ok(userText.includes('=== 会话历史上下文（最近 1 轮） ==='))
+  assert.ok(userText.includes('就用 FastAPI'))
+  // 诊断环记录 historyChars
+  const logRes = makeRes()
+  await routes['/api/prompt-enhance/log'](makeReq({}), logRes)
+  const logs = JSON.parse(logRes.body).requests
+  const rec = logs[logs.length - 1]
+  assert.ok(rec.historyChars > 0)
+})

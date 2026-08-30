@@ -56,6 +56,8 @@ export interface DshSessionHeader {
 
 export interface DshSession {
   header?: DshSessionHeader
+  /** live Session 的模型视角消息派生（会话历史上下文用；老版本可能不存在） */
+  deriveMessages?(): unknown[]
 }
 
 export interface DshSessions {

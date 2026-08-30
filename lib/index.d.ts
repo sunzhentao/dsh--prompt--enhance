@@ -23,6 +23,8 @@ export interface PromptEnhanceModeOverrides {
   treeChars?: number
   fileChars?: number
   contentChars?: number
+  historyTurns?: number
+  historyChars?: number
   maxTokens?: number
   temperature?: number
   effort?: PromptEnhanceEffort
@@ -51,6 +53,8 @@ export interface ResolvedPromptEnhanceMode {
   treeChars: number
   fileChars: number
   contentChars: number
+  historyTurns: number
+  historyChars: number
   maxTokens: number
   temperature: number
   effort: string
@@ -96,17 +100,19 @@ export interface SplitConfirmationResult {
 
 export function apply(ctx: unknown, config?: PromptEnhanceConfig): void
 export function resolveConfig(raw?: PromptEnhanceConfig): ResolvedPromptEnhanceConfig
-export function collectContext(fs: unknown, cwd: string, cfg: ResolvedPromptEnhanceMode): Promise<string | null>
+export function collectContext(fs: unknown, cwd: string, cfg: ResolvedPromptEnhanceMode, draft?: string): Promise<string | null>
+export function collectHistory(session: unknown, cfg: ResolvedPromptEnhanceMode): string
 export function buildSystem(mode: ResolvedPromptEnhanceMode, cfg: ResolvedPromptEnhanceConfig): string
 export function normalizeAnswers(raw: unknown): NormalizedAnswer[]
 export function buildReviseSystem(mode: ResolvedPromptEnhanceMode, cfg: ResolvedPromptEnhanceConfig): string
-export function buildReviseUser(draft: string, enhanced: string, answers: NormalizedAnswer[]): string
+export function buildReviseUser(draft: string, enhanced: string, answers: NormalizedAnswer[], history?: string): string
 export function buildUserMessage(
   mode: ResolvedPromptEnhanceMode,
   context: string,
   draft: string,
   answers: NormalizedAnswer[],
   baseEnhanced: string,
+  history?: string,
 ): string
 export function collectCandidates(
   llm: unknown,
