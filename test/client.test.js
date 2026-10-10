@@ -38,16 +38,19 @@ const fakeReact = {
 }
 
 let captured = null
+/** 捕获注册在 window 上的监听器，便于用例直接派发快捷键事件。 */
+const winListeners = { keydown: [], error: [], unhandledrejection: [] }
 globalThis.window = {
   __ModuleLoader__: { load: (opts) => { captured = opts.factory } },
-  addEventListener: () => {},
-  removeEventListener: () => {},
+  addEventListener: (type, fn) => { (winListeners[type] || (winListeners[type] = [])).push(fn) },
+  removeEventListener: (type, fn) => { winListeners[type] = (winListeners[type] || []).filter((f) => f !== fn) },
 }
 globalThis.document = {
   createElement: () => ({ setAttribute: () => {}, remove: () => {}, parentNode: null }),
   head: { appendChild: () => {} },
   addEventListener: () => {},
   removeEventListener: () => {},
+  activeElement: null,
 }
 
 const _mod = await import('../lib/client.js')
@@ -181,8 +184,8 @@ function findAll (node, predicate, out = []) {
 }
 
 /** 0.2.x 契约的右槽 props：owner props 为空，输入态走 useInput 选择器钩子。 */
-const inputProps = (state) => ({
-  sessionId: 's1',
+const inputProps = (state, sessionId = 's1') => ({
+  sessionId,
   inputActions: { setDraft: () => {} },
   useInput: (select) => select({ phase: 'plain', draft: '', ...state }),
 })
@@ -190,6 +193,16 @@ const inputProps = (state) => ({
 /** ✦ 增强按钮（aria-label 以「提示词增强」开头，模式按钮是另一个）。 */
 const starButton = (tree) =>
   findAll(tree, (n) => n.props && typeof n.props['aria-label'] === 'string' && n.props['aria-label'].startsWith('提示词增强')).pop()
+
+/** overlay 槽的 props：真实宿主对 session 作用域的两个槽位都发 inputActions（标准 prop）。 */
+const overlayProps = (sessionId, written = []) => ({
+  sessionId,
+  inputActions: { setDraft: (t) => written.push(t) },
+})
+
+/** 按可见文本找按钮（面板底部的「采用增强结果 / 放弃 / 按回答重新增强」）。 */
+const buttonByText = (tree, text) =>
+  findAll(tree, (n) => n.type === 'button' && (n.props.children || []).includes(text)).pop()
 
 test('右槽：宿主只给 useInput 时 ✦ 按钮可用，并可用草稿镜像发起增强', async () => {
   const { ctx, slots } = fakeCtx()
@@ -280,5 +293,140 @@ test('overlay：提示框可点击关闭（完全不依赖定时器）', () => {
   } finally {
     globalThis.setTimeout = realSetTimeout
     delete globalThis.clearTimeout
+  }
+})
+
+test('会话隔离：状态按 sessionId 分桶，不串会话、也不互相清空', async () => {
+  const realSetTimeout = globalThis.setTimeout
+  globalThis.setTimeout = () => 0 // 关掉真实定时器，避免用例等待/泄漏
+  globalThis.clearTimeout = () => {}
+  globalThis.fetch = async () => ({ json: async () => ({ ok: true, enhanced: '甲会话增强后', confirmations: '' }) })
+  const { ctx, slots } = fakeCtx()
+  try {
+    mod.apply(ctx)
+    const right = slotInstance(slots.get('conversation.input.right'))
+    // 真实宿主切换会话时按 sessionGenerationKey remount 槽位条目，因此每次都建新实例
+    const overlayFor = (sessionId, withActions = false) =>
+      slotInstance(slots.get('conversation.input.overlay'))(withActions ? overlayProps(sessionId) : { sessionId })
+
+    // 甲会话：发起增强 → 对比面板
+    await starButton(right(inputProps({ draft: '甲会话草稿' }))).props.onClick()
+    const panel = overlayFor('s1', true)
+    assert.ok(panel, '甲会话应看到对比面板')
+
+    // 甲会话点「采用增强结果」→ 撤回提示（撤回会把原文写回输入框，串会话最危险）
+    buttonByText(panel, '采用增强结果').props.onClick()
+    assert.ok(overlayFor('s1', true), '甲会话应看到撤回提示')
+
+    // 乙会话渲染（另一个 composer / 切会话都算）：不得看到甲会话的状态
+    assert.equal(overlayFor('s2', true), null, '乙会话不应看到甲会话的撤回提示')
+    // 且乙会话的渲染不能把甲会话自己的状态清掉
+    assert.ok(overlayFor('s1', true), '甲会话的状态不应被乙会话的渲染清空')
+  } finally {
+    globalThis.setTimeout = realSetTimeout
+    delete globalThis.clearTimeout
+    delete globalThis.fetch
+  }
+})
+
+test('多 composer 并存：主输入框与侧栏 composer 各自独立，互不覆盖', async () => {
+  const realSetTimeout = globalThis.setTimeout
+  globalThis.setTimeout = () => 0
+  globalThis.clearTimeout = () => {}
+  globalThis.fetch = async () => ({ json: async () => ({ ok: true, enhanced: '主会话增强后', confirmations: '' }) })
+  const { ctx, slots } = fakeCtx()
+  try {
+    mod.apply(ctx)
+    const rightMain = slotInstance(slots.get('conversation.input.right'))
+    const rightSide = slotInstance(slots.get('conversation.input.right'))
+    const overlayMain = slotInstance(slots.get('conversation.input.overlay'))
+    const overlaySide = slotInstance(slots.get('conversation.input.overlay'))
+
+    // 主输入框发起增强；侧栏 composer 持续渲染（模拟用户在侧栏聊天里打字）
+    await starButton(rightMain(inputProps({ draft: '主会话草稿' }, 'main'))).props.onClick()
+    assert.ok(overlayMain(overlayProps('main')), '主会话应出现对比面板')
+    rightSide(inputProps({ draft: '侧栏草稿' }, 'side'))
+    assert.ok(overlayMain(overlayProps('main')), '侧栏 composer 的渲染不应清掉主会话面板')
+    assert.equal(overlaySide(overlayProps('side')), null, '侧栏 composer 不应看到主会话面板')
+  } finally {
+    globalThis.setTimeout = realSetTimeout
+    delete globalThis.clearTimeout
+    delete globalThis.fetch
+  }
+})
+
+test('写草稿的阶段守卫：输入框非 plain 时拒绝写入并提示', async () => {
+  const realSetTimeout = globalThis.setTimeout
+  globalThis.setTimeout = () => 0
+  globalThis.clearTimeout = () => {}
+  globalThis.fetch = async () => ({ json: async () => ({ ok: true, enhanced: '增强后', confirmations: '' }) })
+  const { ctx, slots } = fakeCtx()
+  try {
+    mod.apply(ctx)
+    const right = slotInstance(slots.get('conversation.input.right'))
+    const overlay = slotInstance(slots.get('conversation.input.overlay'))
+    const written = []
+    const props = (state) => ({
+      sessionId: 's1',
+      inputActions: { setDraft: (t) => written.push(t) },
+      useInput: (select) => select({ phase: 'plain', draft: '原稿', ...state }),
+    })
+
+    await starButton(right(props({}))).props.onClick()
+    // 提交中的输入框：不允许写回，但面板与增强结果必须保留（只在面板内提示）
+    right(props({ phase: 'submitting' }))
+    buttonByText(overlay(overlayProps('s1', written)), '采用增强结果').props.onClick()
+    assert.deepEqual(written, [], '非 plain 阶段不得写入草稿')
+    const guarded = overlay(overlayProps('s1', written))
+    assert.match(String(guarded.props.className), /pe-compare/, '面板不应被拒绝提示顶掉')
+    assert.match(JSON.stringify(guarded.props.children), /提交或处理中/)
+
+    // 回到 plain 后可以正常采用（面板还在，不必重跑增强）
+    right(props({}))
+    buttonByText(overlay(overlayProps('s1', written)), '采用增强结果').props.onClick()
+    assert.deepEqual(written, ['增强后'], 'plain 阶段应写入增强结果')
+  } finally {
+    globalThis.setTimeout = realSetTimeout
+    delete globalThis.clearTimeout
+    delete globalThis.fetch
+  }
+})
+
+test('对比面板快捷键：Esc 被宿主消费时不放弃结果；Enter 不抢按钮激活', async () => {
+  const realSetTimeout = globalThis.setTimeout
+  globalThis.setTimeout = () => 0
+  globalThis.clearTimeout = () => {}
+  globalThis.fetch = async () => ({ json: async () => ({ ok: true, enhanced: '增强后', confirmations: '' }) })
+  const { ctx, slots } = fakeCtx()
+  try {
+    mod.apply(ctx)
+    const right = slotInstance(slots.get('conversation.input.right'))
+    const overlay = slotInstance(slots.get('conversation.input.overlay'))
+    const written = []
+    await starButton(right(inputProps({ draft: '原稿' }))).props.onClick()
+    assert.ok(overlay(overlayProps('s1', written)), '应有对比面板')
+
+    const keydown = winListeners.keydown[winListeners.keydown.length - 1]
+    assert.ok(typeof keydown === 'function', '对比面板应注册 keydown 监听')
+
+    // Esc 已被宿主固定命令（response.stop 等）消费 → 不得丢弃增强结果
+    keydown({ key: 'Escape', defaultPrevented: true, preventDefault: () => {} })
+    assert.ok(overlay(overlayProps('s1', written)), 'Esc 被宿主消费时面板应保留')
+
+    // 焦点在按钮上按 Enter → 应交给按钮自身激活，而不是被插件抢成「采用」
+    let prevented = false
+    keydown({ key: 'Enter', target: { closest: () => ({}) }, preventDefault: () => { prevented = true } })
+    assert.equal(prevented, false, '焦点在按钮上时不应 preventDefault')
+    assert.deepEqual(written, [], '焦点在按钮上时不得执行采用')
+    assert.match(String(overlay(overlayProps('s1', written)).props.className), /pe-compare/)
+
+    // 焦点不在可交互元素上时 Enter 采用
+    keydown({ key: 'Enter', target: { tagName: 'DIV', closest: () => null }, preventDefault: () => { prevented = true } })
+    assert.deepEqual(written, ['增强后'], 'Enter 应执行采用')
+    assert.match(String(overlay(overlayProps('s1', written)).props.className), /pe-with-action/)
+  } finally {
+    globalThis.setTimeout = realSetTimeout
+    delete globalThis.clearTimeout
+    delete globalThis.fetch
   }
 })

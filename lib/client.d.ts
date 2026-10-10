@@ -33,10 +33,10 @@ export const ERR_HINTS: Record<string, string>
 export const MODES: { id: string; label: string; hint: string }[]
 
 /** 追加一条增强历史（每次成功增强/修订后调用），返回当前条数 */
-export function pushHistory(entry: EnhanceHistoryEntry): number
+export function pushHistory(entry: EnhanceHistoryEntry & { sessionId?: string }): number
 
-/** 返回历史快照（新 → 旧，#1 为最新） */
-export function listHistory(): EnhanceHistoryEntry[]
+/** 返回历史快照（新 → 旧，#1 为最新）；传 sessionId 时只返回该会话的条目 */
+export function listHistory(sessionId?: string): EnhanceHistoryEntry[]
 
 /** 清空会话内历史 */
 export function clearHistory(): void

@@ -58,10 +58,23 @@ export interface DshSession {
   header?: DshSessionHeader
   /** live Session 的模型视角消息派生（会话历史上下文用；老版本可能不存在） */
   deriveMessages?(): unknown[]
+  /** 会话 request/header 事件的折叠结果：config 是界面上显示的那个模型选择（0.2.0） */
+  requestHeader?(): { config?: { provider?: string, model?: string } } | undefined
 }
 
 export interface DshSessions {
   get(id: string): DshSession | null | undefined
+}
+
+/**
+ * 宿主连接服务（0.2.0）：`requestRejection(req)` 就是 DSH 自家 `/api` 围栏用的那套
+ * Host/Origin 同源校验 + 浏览器 cookie 认证——返回 undefined=放行、401/403=拒绝，
+ * 抛错时调用方必须 fail closed。必须**每请求**惰性读取：宿主在
+ * `await BrowserAuth.create(...)` 之后才 provide 该服务（dshmarket #729 踩过）。
+ */
+export interface DshConnection {
+  requestRejection?(req: import('node:http').IncomingMessage): number | undefined
+  trustedHosts?: readonly string[]
 }
 
 export interface DshWebServerRegisterDesc {

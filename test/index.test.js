@@ -279,12 +279,61 @@ test('attemptCandidate：预算耗尽时关推理加大预算重试', async () =
   assert.equal(calls(), 2)
 })
 
+// 0.2.0 的 deepseek 适配器把「正常停止但零内容」抛成 EMPTY_RESPONSE：必须和
+// max-tokens 一样走「关推理 + 加大预算」，否则会被当成"其他失败"→ 去掉档位 →
+// 宿主补回模型默认档位（deepseek = high），把恢复动作变成加强推理。
+test('attemptCandidate：EMPTY_RESPONSE 也走关推理加大预算（且真的发 off）', async () => {
+  const err = Object.assign(new Error('DeepSeek Messages returned no content'), { code: 'EMPTY_RESPONSE' })
+  const seen = []
+  let calls = 0
+  const llm = {
+    async * stream(options) {
+      calls++
+      seen.push({ effort: options.reasoningEffort, maxTokens: options.maxTokens })
+      if (calls === 1) {
+        yield { type: 'finish', reason: { kind: 'error', failure: { code: err.code, message: err.message } } }
+        return
+      }
+      yield { type: 'text-delta', text: 'recovered' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+  const r = await attemptCandidate(llm, CAND, 's', 'u', { effort: 'high', temperature: 0, maxTokens: 1000 })
+  assert.equal(r.text, 'recovered')
+  assert.equal(calls, 2)
+  assert.equal(seen[0].effort, 'high')
+  assert.equal(seen[1].effort, 'off', '恢复调用必须显式关推理（省略参数会被宿主补成 high）')
+  assert.ok(seen[1].maxTokens > seen[0].maxTokens, '恢复调用应加大预算')
+})
+
+test('attemptCandidate：无关失败不重复同一请求（expert 不再双倍计费）', async () => {
+  const { llm, calls } = makeLlm([new Error('429 rate limited'), new Error('不应该被调用')])
+  const r = await attemptCandidate(llm, CAND, 's', 'u', { effort: 'high', temperature: 0, maxTokens: 10 })
+  assert.ok(!r.text)
+  assert.equal(calls(), 1, '限流这类失败不该原样重发（去档位会被宿主补成同一个 high）')
+  assert.ok(r.failed.includes('档位=high'))
+})
+
 test('attemptCandidate：全部失败返回失败原因', async () => {
   const { llm } = makeLlm([new Error('第一次失败'), new Error('第二次失败')])
   const r = await attemptCandidate(llm, CAND, 's', 'u', { effort: 'high', temperature: 0, maxTokens: 10 })
   assert.ok(!r.text)
-  assert.ok(r.failed.includes('带档位(high)'))
-  assert.ok(r.failed.includes('无档位重试'))
+  assert.ok(r.failed.includes('档位=high'))
+  assert.ok(r.failed.includes('第一次失败'))
+})
+
+test('attemptCandidate：effort=none 时不发送档位参数', async () => {
+  const seen = []
+  const llm = {
+    async * stream(options) {
+      seen.push(options.reasoningEffort)
+      yield { type: 'text-delta', text: 'ok' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+  const r = await attemptCandidate(llm, CAND, 's', 'u', { effort: 'none', temperature: 0, maxTokens: 10 })
+  assert.equal(r.text, 'ok')
+  assert.deepEqual(seen, [undefined])
 })
 
 // ---------- collectContext ----------

@@ -2,6 +2,46 @@
 
 所有显著更改都将记录在此文件中。
 
+## [1.5.2] - 2026-10-10
+
+桌面版 0.2.0-rc.2 契约体检批（Host 半 + 浏览器半各一轮对照 `app.asar` 真实代码的审计）后的修复与加固。
+
+### 加固（安全）
+
+- **三条路由绕过宿主的 `/api` 围栏**：它们是 `webServer` 上的 **exact** 注册，而 DSH 的 `/api` 围栏是 **prefix** 路由——`dsh-host-webserver` 的 `match()` 先查 exact 表、命中即返回，围栏根本看不到它们。实测（对运行中的 0.2.0-rc.2）：带 `Origin: https://evil.example` + `Sec-Fetch-Site: cross-site` 的 `POST /api/prompt-enhance/enhance` 返回 **200**（handler 已执行，可被迫读项目文件并远端调用模型），而同头的 `/api/gateway/*` 是 **403**。
+  - `POST /enhance`、`POST /log-error` 现在每请求调用宿主的 `connection.requestRejection`（官方 API，就是 `/api` 围栏那套 Host/Origin 同源校验 + 浏览器 cookie 认证）；**必须惰性读取**——`connection` 由宿主在 `await BrowserAuth.create(...)` 之后才 provide，mount 时读永远是 undefined（dshmarket #729 踩过同一个坑）。门禁抛错一律 **fail closed**（403）。
+  - 宿主没有该服务时（老版本）回退到同规则的本机校验：Host 存在时必须回环、`sec-fetch-site` 不得为 `cross-site`、Origin 存在时必须与 Host 同源；Host 缺失时放行（桌面版转发层会剥掉 Host/Origin/cookie 再自己注入 cookie，不能因此误伤）。
+  - `GET /log` 只走 Host/Origin 围栏、不要求 cookie：读接口不改状态、跨源页面也读不到响应体（无 CORS），真正的威胁是 DNS rebinding，那由 Host 围栏挡住；要求 cookie 只会让本机脚本（含本插件的诊断流程）再也读不到诊断环。
+- **跨站"简单请求"**：POST 若带非 JSON 的 `content-type`（表单 / `text/plain`）直接 415，挡掉无需预检的跨站表单提交。
+- **超大请求体**：>1MB 时不再 `req.destroy()`（客户端只看到连接重置、桌面版转发必然失败），改为停止累积并正常应答 **413** 结构化错误。
+- **单次调用成本上限**：草稿超过 20000 字符直接 `BAD_BODY`。
+- **单条路由注册冲突不再一损俱损**：`webServer.register` 对重复 `(kind,path)` 会 throw，而 effect 体抛错会让整个 fiber 回滚（三条路由一起消失）；现在每条独立 try/catch，失败的只记进诊断环。
+- 响应统一带 `cache-control: no-store`。
+
+### 修复
+
+- **重试阶梯在 0.2.0 下方向相反**：省略 `reasoningEffort` 不等于关推理——宿主会用模型默认档位补齐（`dsh-llm` 的 `requested ?? reasoning.defaultEffort`，deepseek 未配置时默认 `high`）。于是「空输出恢复」实际是把推理调更高，「去档位重试」对专家模式（本来就是 `high`）等于把同一请求再发一遍、只让计费翻倍。现在：空输出（含 0.2.0 官方适配器把「正常停止但零内容」抛出的 `EMPTY_RESPONSE`）→ **显式发 `'off'` + 加大预算**；只有「档位参数确实被拒」（`UNSUPPORTED_REASONING_EFFORT`、400 回显 effort/thinking、`developer` 角色不被接受）才去掉参数重试；限流/网络等无关失败不再重发。配置文档同步澄清 `effort: 'none'` 的真实语义是「不带该参数、由宿主按模型默认决定」。
+- **增强用的是全局默认模型而非会话当前模型**：0.2.0 的会话选择记录在 `request/header` 事件里（宿主优先读 `session.requestHeader().config`，只在还没落过 header 时才用全局默认）。恢复/分叉的历史会话与全局默认不一致时，用户界面显示一个模型、增强却用另一个。候选链顺序改为：`config.candidates` → **会话当前模型** → 全局默认 → 自动补足。
+
+- **跨会话状态串扰（真数据错乱风险）**：两个槽位都是 `scope: 'session'`，DSH renderer 切会话时按 `sessionGenerationKey` remount 条目（`dsh-client-ui-renderer` 里 `StrictSessionEntry` 的 key），但插件把 `current`/`draftMirror`/`activeAbort` 放在 `apply()` 闭包里跨会话共享。后果：甲会话的对比面板/撤回提示会显示在乙会话的输入框上，点「撤回」会把**甲会话的原文写进乙会话的输入框**。
+- **多 composer 并存时的互相清空**：同一文档可能同时挂载两个 composer（右侧栏子智能体聊天 = `ui-subagent` 用 `renderFactorySlot("conversation.content", {variant:"embedded"})` 再渲一份），共享状态会被另一个 composer 的渲染覆盖（草稿镜像串、变更检测按错会话假报错）。
+  - 上两条统一改为**状态按 `sessionId` 分桶**（`seatOf(sessionId)`，最多缓存 8 个会话位）：提示/对比面板/草稿镜像/输入阶段/在途请求/定时器全部随会话隔离，互不串、互不清。会话历史 `listHistory(sessionId)` 也按会话过滤（此前标着「会话内」实为全局，能在乙会话里采用甲会话的版本）。
+- **Esc 会连「停止本轮」一起触发**：宿主把 `Escape` 注册成固定命令 `response.stop`（`ui-conversation`），它的分发器先消费该键，插件的 `preventDefault()` 拦不住 → 面板打开且 turn 在跑时按 Esc 既停 turn 又丢弃增强结果。现在 `e.defaultPrevented` 为真时不再放弃结果。
+- **Enter 抢走按钮激活**：焦点在「放弃/采用/历史版本采用」等按钮上按 Enter，原本会被插件抢成「采用当前结果」（`<button>` 的 Enter 激活被 `preventDefault` 取消）。现在焦点落在 `button`/`a`/`menuitem`/`role=button` 上时不抢键。
+- **快捷键更稳**：改用物理 `e.code === 'KeyE'`（原来用 `e.key`，非 QWERTY 或中文输入法下可能静默失效），并加 `e.repeat`/`e.isComposing` 门控；`preventDefault()` 只在真正要触发增强时执行（空草稿/忙碌/非 plain 时不再吞掉这个组合）；多 composer 时按焦点路由，避免一次按键触发两次增强。
+- **写入草稿缺少阶段守卫**：宿主 `inputActions.setDraft` 没有任何守卫（同一对象的 `insertText` 才会拒绝 `adjudicating`/`submitting`），插件可能把增强结果盖到正在提交的草稿上。现在渲染期镜像 `input.phase`，非 `plain` 时拒绝写入。
+- **拒绝采纳不再丢面板**：写回被拒（阶段不对/草稿被改过）此前用 `publish({phase:'notice'})`，会把对比面板整个顶掉——用户因为一句话就白跑一次增强。改为**面板内提示**（`.pe-hint`，4.2 秒后自清），面板与增强结果保留，用户改回原样后可直接再点「采用」。
+- **提示框/忙碌卡压住草稿首行**：`overlayAnchor` 是零高度贴顶锚点，原来 `top:8px` 正好落在卡片 `padding-top:8px` 之后的草稿第一行上（忙碌卡还带 `pointer-events:auto`，会吃掉首行点击）。两者改为 `bottom: calc(100% + 10px)`，与对比面板一样浮在卡片上方。
+- **错误上报自激**：上报用的 `try { fetch(...) } catch {}` 捕不到 Promise rejection，上报失败本身会再触发 `unhandledrejection` → 再上报。改为 `fetch(...).catch(() => {})`。
+- **槽位注册的 disposer 被丢弃**：`ui-renderer` 的 `slots.register/inject` 内部把 effect 记在 registry 自己的 ctx 上，不接住返回值会导致卸载/HMR 后槽位条目残留。两个注册都收进 `ctx.effect(...)`。
+
+### 工程
+
+- `test/client.test.js`：假 window 现在记录监听器（可直接派发键盘事件）；新增「会话隔离」「多 composer 并存」「写草稿阶段守卫」「Esc/Enter 键盘边界」4 个用例。
+- `test/enhance.integration.test.js`：新增 8 个用例覆盖路由门禁（跨站/非同源/非回环/rebinding Host/401/fail-closed/非 JSON content-type）、413、草稿上限、单条路由注册失败隔离、会话当前模型优先。
+- `test/index.test.js`：新增重试阶梯 4 个用例（`EMPTY_RESPONSE` 走关推理加大预算且真的发 `off`、无关失败不重发、`effort: none` 不发参数）。
+- 测试总数 55 → 70。关键用例都做过反向实验：把状态退化成全局单例 → 7 红；把门禁短路 → 4 红。
+
 ## [1.5.1] - 2026-10-09
 
 桌面版客户端（0.2.0-rc.2）下 ✦ 按钮不可点击、切换模式后提示框不消失的修复。
