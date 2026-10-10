@@ -2,6 +2,19 @@
 
 所有显著更改都将记录在此文件中。
 
+## [1.5.1] - 2026-10-09
+
+桌面版客户端（0.2.0-rc.2）下 ✦ 按钮不可点击、切换模式后提示框不消失的修复。
+
+### 修复
+
+- **✦ 按钮恒为禁用（宿主契约变更）**：DSH **0.1.2-rc.1** 起 `conversation.input.right/left/overlay` 的 owner props 变为空，输入态改由 session 标准钩子 `useInput` 提供（`inputActions` 仍是普通 prop）；此前（≤0.1.1）传的是 `{ session, input }`。插件只读 `props.input`，在 0.1.2-rc.1 之后 `draft` 恒为空、`phase` 恒为 `plain`，于是 ✦ 按钮永远处于禁用态。新增 `readInputState()` 统一两种契约（优先 `useInput` 钩子，旧宿主回退 `props.input`）；事件处理器里不能调钩子，改为读取右槽渲染时维护的草稿镜像（`runEnhance`）。
+- **提示框永不消失（定时器缺失）**：`apply()` 里一次性 `ctx.get('timer')` 后判空即等于「永不超时」——0.1.x 客户端根本没有该服务，0.2.x 只在动态包 runner 的组合里提供且可能尚未就绪，于是「增强模式已切换为…」提示框、采用后的撤回提示会一直挂在输入框上，忙碌卡也不再有已用时/120 秒超时。改为惰性获取宿主 `timer`，取不到就回退浏览器 `setTimeout`/`setInterval`；普通提示框同时支持**点击关闭**，任何定时器路径失效时用户都能一键清掉。
+
+### 工程
+
+- `test/client.test.js` 增加迷你 hooks 运行时，槽位组件可真实渲染，新增 6 个宿主契约回归用例（按钮可用性、空草稿/提交中禁用、旧契约回退、无 timer 时提示框仍自动消失、点击关闭提示框）；测试总数 49 → 55。新增 `readInputState` 导出与 `typings/dsh.d.ts` 的槽位 props 类型（`DshInputState` / `DshInputActions` / `DshInputSlotProps`）。已验证这些用例在修复前的 `lib/client.js` 上失败（4 个红）。
+
 ## [1.5.0] - 2026-08-29
 
 ### 新增

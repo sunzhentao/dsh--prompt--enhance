@@ -78,7 +78,7 @@ export interface DshCtx {
   }
 }
 
-/** 浏览器半注入上下文（lib/client.js）：slots 槽位注册 + timer 定时器 */
+/** 浏览器半注入上下文（lib/client.js）：slots 槽位注册 + timer 定时器（可能取不到） */
 export interface DshClientCtx {
   effect(fn: () => void | (() => void), label?: string): void
   get<T = any>(key: string): T
@@ -86,4 +86,29 @@ export interface DshClientCtx {
     inject(name: string, register: unknown): void
     register(desc: Record<string, unknown>, render: unknown): unknown
   }
+}
+
+/** 会话输入态快照（DSH `useInput` 选择器钩子的取值） */
+export interface DshInputState {
+  phase?: string
+  draft?: string
+}
+
+/** 会话输入写入面（`conversation.input.*` 槽位的 `inputActions` prop） */
+export interface DshInputActions {
+  setDraft(text: string): void
+}
+
+/**
+ * `conversation.input.right` 等输入槽位的组件 props。
+ * 0.1.2-rc.1 起 owner props 为空，输入态经 `useInput` 标准钩子提供；
+ * 0.1.1 及更早宿主把 `{ session, input }` 作为 owner prop 传入（保留兼容）。
+ */
+export interface DshInputSlotProps {
+  sessionId?: string
+  inputActions?: DshInputActions
+  /** 0.1.2-rc.1 起：session 标准选择器钩子（仅可在渲染期调用） */
+  useInput?: <T = DshInputState>(select?: (state: DshInputState) => T) => T
+  /** ≤0.1.1 旧契约的 owner prop */
+  input?: DshInputState
 }

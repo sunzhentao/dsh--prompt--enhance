@@ -23,6 +23,9 @@ export function parseConfirmations(raw: string): ConfirmItem[]
 /** 把 Host 错误码映射为用户可操作提示 */
 export function friendlyError(code: string | null | undefined, fallback?: string | null): string
 
+/** 读取当前会话输入态：0.1.2-rc.1 起走 session 标准钩子 useInput，旧宿主回退 props.input */
+export function readInputState(props: unknown): { phase?: string; draft?: string } | undefined
+
 /** 全部错误码 → 友好提示映射 */
 export const ERR_HINTS: Record<string, string>
 
